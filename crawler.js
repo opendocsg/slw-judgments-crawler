@@ -4,6 +4,8 @@ const axios = require('axios')
 const fs = require('fs')
 const pdf2md = require('@opendocsg/pdf2md')
 const { promisify } = require('util')
+const request = require('request')
+const cheerio = require('cheerio')
 
 const promiseToWriteFile = promisify(fs.writeFile)
 const promiseToMkDir = promisify(fs.mkdir)
@@ -55,24 +57,50 @@ const scrape = async (url) => {
   const index = extractMetadataFrom(rawReport)
   const report = correctFormatting(rawReport) + `Source: [link](${url})\n`
 
-	return { report, index }
+  return { report, index }
 }
 
-const listJudgmentsFrom = async (url) => {
-  let next = undefined
+const judgmentsFrom = async (url) => {
+  const { links, next } = await parsedLinksFrom(url)
   return {
     next,
-    listings: [ url ],
+    listings: links,
   }
+}
+
+const parsedLinksFrom = async (url) => {
+  return new Promise((resolve, reject) => {
+    request({ uri: url },
+      (error, response, body) => {
+        if (error) reject(error)
+        var $ = cheerio.load(body)
+        let links = []
+        let next = undefined
+        $('a[href$=".pdf"]').each(function () {
+          var link = $(this)
+          var href = link.attr('href')
+          links.push(href)
+        })
+        $('a[class=next]').each(function () {
+          var link = $(this)
+          var href = link.attr('href')
+          next = href
+        })
+        resolve({ links, next })
+      })
+  })
 }
 
 const start = async (startURL) => {
   let listingURL = startURL
   while (listingURL) {
-    const { next, listings } = await listJudgmentsFrom(listingURL)
+    const { next, listings } = await judgmentsFrom(listingURL)
     for (url of listings) {
       const { report, index: { yaml, judgmentNumber } } = await scrape(url)
-      const destPath = `${TARGET_DIR}/${judgmentNumber.trim().replace(/[\[\]]/g, '').replace(/ /g, '_')}`
+      const destPath = `${TARGET_DIR}/${judgmentNumber
+        .trim()
+        .replace(/[\[\]]/g, '')
+        .replace(/ /g, '_')}`
       promiseToMkDir(destPath)
         .then(() => Promise.all([
           promiseToWriteFile(`${destPath}/report.md`, report),

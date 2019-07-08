@@ -1,0 +1,4 @@
+{
+  "extends": ["@opengovsg/eslint-config-opengovsg"]
+}
+

@@ -4,6 +4,7 @@ const axios = require('axios')
 const fs = require('fs')
 const pdf2md = require('@opendocsg/pdf2md')
 const { promisify } = require('util')
+const cheerio = require('cheerio')
 
 const promiseToWriteFile = promisify(fs.writeFile)
 const promiseToMkDir = promisify(fs.mkdir)
@@ -55,24 +56,41 @@ const scrape = async (url) => {
   const index = extractMetadataFrom(rawReport)
   const report = correctFormatting(rawReport) + `Source: [link](${url})\n`
 
-	return { report, index }
+  return { report, index }
 }
 
-const listJudgmentsFrom = async (url) => {
-  let next = undefined
-  return {
-    next,
-    listings: [ url ],
+const judgmentsFrom = async (url) => {
+  try {
+    const response = await axios.get(url)
+    let $ = cheerio.load(response.data)
+    let links = []
+    let next = undefined
+    $('a[href$=".pdf"]').each(function () {
+      let link = $(this)
+      let href = link.attr('href')
+      links.push(href)
+    })
+    $('a[class=next]').each(function () {
+      let link = $(this)
+      let href = link.attr('href')
+      next = href
+    })
+    return { next, listings: links }
+  } catch (error) {
+    console.error(error)
   }
 }
 
 const start = async (startURL) => {
   let listingURL = startURL
   while (listingURL) {
-    const { next, listings } = await listJudgmentsFrom(listingURL)
+    const { next, listings } = await judgmentsFrom(listingURL)
     for (url of listings) {
       const { report, index: { yaml, judgmentNumber } } = await scrape(url)
-      const destPath = `${TARGET_DIR}/${judgmentNumber.trim().replace(/[\[\]]/g, '').replace(/ /g, '_')}`
+      const destPath = `${TARGET_DIR}/${judgmentNumber
+        .trim()
+        .replace(/[\[\]]/g, '')
+        .replace(/ /g, '_')}`
       promiseToMkDir(destPath)
         .then(() => Promise.all([
           promiseToWriteFile(`${destPath}/report.md`, report),

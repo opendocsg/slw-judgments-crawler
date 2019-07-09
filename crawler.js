@@ -4,7 +4,6 @@ const axios = require('axios')
 const fs = require('fs')
 const pdf2md = require('@opendocsg/pdf2md')
 const { promisify } = require('util')
-const request = require('request')
 const cheerio = require('cheerio')
 
 const promiseToWriteFile = promisify(fs.writeFile)
@@ -61,29 +60,24 @@ const scrape = async (url) => {
 }
 
 const judgmentsFrom = async (url) => {
-  const { links, next } = await new Promise((resolve, reject) => {
-    request({ uri: url },
-      (error, response, body) => {
-        if (error) reject(error)
-        var $ = cheerio.load(body)
-        let links = []
-        let next = undefined
-        $('a[href$=".pdf"]').each(function () {
-          var link = $(this)
-          var href = link.attr('href')
-          links.push(href)
-        })
-        $('a[class=next]').each(function () {
-          var link = $(this)
-          var href = link.attr('href')
-          next = href
-        })
-        resolve({ links, next })
-      })
-  })
-  return {
-    next,
-    listings: links,
+  try {
+    const response = await axios.get(url)
+    let $ = cheerio.load(response.data)
+    let links = []
+    let next = undefined
+    $('a[href$=".pdf"]').each(function () {
+      let link = $(this)
+      let href = link.attr('href')
+      links.push(href)
+    })
+    $('a[class=next]').each(function () {
+      let link = $(this)
+      let href = link.attr('href')
+      next = href
+    })
+    return { next, listings: links }
+  } catch (error) {
+    console.error(error)
   }
 }
 

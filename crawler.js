@@ -61,15 +61,7 @@ const scrape = async (url) => {
 }
 
 const judgmentsFrom = async (url) => {
-  const { links, next } = await parsedLinksFrom(url)
-  return {
-    next,
-    listings: links,
-  }
-}
-
-const parsedLinksFrom = async (url) => {
-  return new Promise((resolve, reject) => {
+  const { links, next } = await new Promise((resolve, reject) => {
     request({ uri: url },
       (error, response, body) => {
         if (error) reject(error)
@@ -89,6 +81,10 @@ const parsedLinksFrom = async (url) => {
         resolve({ links, next })
       })
   })
+  return {
+    next,
+    listings: links,
+  }
 }
 
 const start = async (startURL) => {

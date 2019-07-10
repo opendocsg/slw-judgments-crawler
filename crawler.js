@@ -86,12 +86,14 @@ const start = async (startURL) => {
   while (listingURL) {
     const { next, listings } = await judgmentsFrom(listingURL)
     for (url of listings) {
+      console.log(`Fetching ${url}`)
       const { report, index: { yaml, judgmentNumber } } = await scrape(url)
       const destPath = `${TARGET_DIR}/${judgmentNumber
         .trim()
         .replace(/[\[\]]/g, '')
         .replace(/ /g, '_')}`
-      promiseToMkDir(destPath)
+      console.log(`Writing to ${destPath}`)
+      await promiseToMkDir(destPath, { recursive: true })
         .then(() => Promise.all([
           promiseToWriteFile(`${destPath}/report.md`, report),
           promiseToWriteFile(`${destPath}/index.md`, yaml),

@@ -21,8 +21,10 @@ const MATCH_JUDGMENT_NUMBER = /^# (\[20\d\d\] SG.*)$/m
 const MATCH_DECISION_DATE = /^..Decision Date.. :(.*)$/m
 const MATCH_TAG_LINES = /^_[^_]+_( – _[^_]+_)+/mg
 
-const extractMetadataFrom = (report) => {
-  const [, title] = MATCH_TITLE.exec(report)
+const BAD_URLS = []
+
+const extractMetadataFrom = (report, titleMatch = MATCH_TITLE) => {
+  const [, title] = titleMatch.exec(report)
   const [, judgmentNumber] = MATCH_JUDGMENT_NUMBER.exec(report)
   const [, decisionDate] = MATCH_DECISION_DATE.exec(report)
   const tags = (report.match(MATCH_TAG_LINES) || [])
@@ -53,7 +55,18 @@ const scrape = async (url) => {
   const { data } = await axios.get(url, { responseType: 'arraybuffer' })
   const rawReport = await pdf2md(data)
 
-  const index = extractMetadataFrom(rawReport)
+  let index
+  try {
+    index = extractMetadataFrom(rawReport)
+  } catch (e) {
+    console.warn(`Bad url ${url}, attempting to extract metadata again`)
+    BAD_URLS.push(url)
+    try {
+      index = extractMetadataFrom(rawReport, /^# ([^\n]+)\n/m)
+    } catch {
+      console.warn('Attempt failed, skipping')
+    }
+  }
   const report = correctFormatting(rawReport) + `Source: [link](${url})\n`
 
   return { report, index }
@@ -87,7 +100,9 @@ const start = async (startURL) => {
     const { next, listings } = await judgmentsFrom(listingURL)
     for (url of listings) {
       console.log(`Fetching ${url}`)
-      const { report, index: { yaml, judgmentNumber } } = await scrape(url)
+      const { report, index } = await scrape(url)
+      const yaml = index.yaml
+      const judgmentNumber = index.judgmentNumber || /(\[20\d\d\] SG.*)\.pdf/.exec(url)[0]
       const destPath = `${TARGET_DIR}/${judgmentNumber
         .trim()
         .replace(/[\[\]]/g, '')
@@ -96,11 +111,13 @@ const start = async (startURL) => {
       await promiseToMkDir(destPath, { recursive: true })
         .then(() => Promise.all([
           promiseToWriteFile(`${destPath}/report.md`, report),
-          promiseToWriteFile(`${destPath}/index.md`, yaml),
+          yaml ? promiseToWriteFile(`${destPath}/index.md`, yaml) : Promise.resolve(),
         ]))
     }
+    console.log(`Following on to ${next}`)
     listingURL = next
   }
+  console.log(`Follow up on the following:\n ${BAD_URLS.join('\n')}\n`)
 }
 
 start(STARTING_URL)

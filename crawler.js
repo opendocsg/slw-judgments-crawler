@@ -65,7 +65,7 @@ const judgmentsFrom = async (url) => {
     let $ = cheerio.load(response.data)
     let links = []
     let next = undefined
-    $('a[href$=".pdf"]').each(function () {
+    $('.DnnModule-EasyDNNnews a[href$=".pdf"]').each(function () {
       let link = $(this)
       let href = link.attr('href')
       links.push(href)

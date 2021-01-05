@@ -11,7 +11,7 @@
   "license": "MIT",
   "dependencies": {
     "@opendocsg/pdf2md": "^0.1.7",
-    "axios": "^0.19.0",
+    "axios": "^0.21.1",
     "cheerio": "^1.0.0-rc.3"
   },
   "devDependencies": {
